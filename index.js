@@ -24,548 +24,195 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages
     ]
 });
 
-const TOURNAMENT_CHANNEL =
-    "1502721949376188478";
+const TOURNAMENT_CHANNEL = "1502721949376188478";
 
 client.commands = new Collection();
 
-for (const command of commands) {
-    client.commands.set(
-        command.data.name,
-        command
-    );
+for (const cmd of commands) {
+    client.commands.set(cmd.data.name, cmd);
 }
 
+// ================= DB =================
 if (!fs.existsSync("./database.json")) {
-    fs.writeFileSync(
-        "./database.json",
-        JSON.stringify(
-            {
-                reports: [],
-                warns: []
-            },
-            null,
-            2
-        )
-    );
+    fs.writeFileSync("./database.json", JSON.stringify({
+        reports: []
+    }, null, 2));
 }
 
-function loadDB() {
-    return JSON.parse(
-        fs.readFileSync(
-            "./database.json",
-            "utf8"
-        )
-    );
-}
+const loadDB = () => JSON.parse(fs.readFileSync("./database.json", "utf8"));
+const saveDB = (data) => fs.writeFileSync("./database.json", JSON.stringify(data, null, 2));
 
-function saveDB(data) {
-    fs.writeFileSync(
-        "./database.json",
-        JSON.stringify(
-            data,
-            null,
-            2
-        )
-    );
-}
+// ================= READY =================
 client.once("ready", async () => {
+    console.log(`${client.user.tag} connecté`);
 
-    console.log(
-        `${client.user.tag} connecté`
+    const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+
+    await rest.put(
+        Routes.applicationCommands(process.env.CLIENT_ID),
+        {
+            body: commands.map(c => c.data.toJSON())
+        }
     );
 
-    const rest = new REST({
-        version: "10"
-    }).setToken(
-        process.env.TOKEN
-    );
+    console.log("Slash commands enregistrées");
+});
 
-    try {
+// ================= INTERACTIONS =================
+client.on("interactionCreate", async interaction => {
 
-        await rest.put(
-            Routes.applicationCommands(
-                process.env.CLIENT_ID
-            ),
-            {
-                body: commands.map(
-                    cmd =>
-                        cmd.data.toJSON()
-                )
-            }
-        );
+    // ===== COMMANDS =====
+    if (interaction.isChatInputCommand()) {
+        const cmd = client.commands.get(interaction.commandName);
+        if (!cmd) return;
 
-        console.log(
-            "Slash commands enregistrées"
-        );
-
-    } catch (err) {
-        console.error(err);
+        try {
+            await cmd.execute(interaction, loadDB, saveDB, client);
+        } catch (e) {
+            console.error(e);
+            return interaction.reply({ content: "Erreur bot", ephemeral: true });
+        }
     }
 
-});
-client.on(
-    "interactionCreate",
-    async interaction => {
+    // ===== BUTTONS =====
+    if (interaction.isButton()) {
 
-        if (
-            interaction.isChatInputCommand()
-        ) {
+        // PARTICIPATION TOURNOI
+        if (interaction.customId === "participate_tournament") {
 
-            const command =
-                client.commands.get(
-                    interaction.commandName
-                );
+            const modal = new ModalBuilder()
+                .setCustomId("tournament_modal")
+                .setTitle("Participation tournoi");
 
-            if (!command) return;
+            const age = new TextInputBuilder()
+                .setCustomId("age")
+                .setLabel("Âge")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            const platform = new TextInputBuilder()
+                .setCustomId("platform")
+                .setLabel("Plateforme")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            const dispo = new TextInputBuilder()
+                .setCustomId("dispo")
+                .setLabel("Disponibilités")
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(age),
+                new ActionRowBuilder().addComponents(platform),
+                new ActionRowBuilder().addComponents(dispo)
+            );
+
+            return interaction.showModal(modal);
+        }
+
+        // ACCEPT
+        if (interaction.customId.startsWith("accept_")) {
+
+            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+                return interaction.reply({ content: "Pas permission", ephemeral: true });
+
+            const userId = interaction.customId.split("_")[1];
 
             try {
+                const user = await client.users.fetch(userId);
+                await user.send("✅ Accepté tournoi");
+            } catch {}
 
-                await command.execute(
-                    interaction,
-                    loadDB,
-                    saveDB
-                );
-
-            } catch (err) {
-
-                console.error(err);
-
-                if (
-                    interaction.replied ||
-                    interaction.deferred
-                ) {
-
-                    await interaction.followUp({
-                        content:
-                            "Une erreur est survenue.",
-                        ephemeral: true
-                    });
-
-                } else {
-
-                    await interaction.reply({
-                        content:
-                            "Une erreur est survenue.",
-                        ephemeral: true
-                    });
-
-                }
-            }
+            return interaction.message.delete();
         }
-              if (
-            interaction.isButton()
-        ) {
 
-            if (
-                interaction.customId ===
-                "participate_tournament"
-            ) {
+        // DENY
+        if (interaction.customId.startsWith("deny_")) {
 
-                const modal =
-                    new ModalBuilder()
-                        .setCustomId(
-                            "tournament_modal"
-                        )
-                        .setTitle(
-                            "Participation"
-                        );
+            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+                return interaction.reply({ content: "Pas permission", ephemeral: true });
 
-                const age =
-                    new TextInputBuilder()
-                        .setCustomId(
-                            "age"
-                        )
-                        .setLabel(
-                            "Votre âge"
-                        )
-                        .setRequired(true)
-                        .setStyle(
-                            TextInputStyle.Short
-                        );
+            const userId = interaction.customId.split("_")[1];
 
-                const platform =
-                    new TextInputBuilder()
-                        .setCustomId(
-                            "platform"
-                        )
-                        .setLabel(
-                            "Plateforme"
-                        )
-                        .setRequired(true)
-                        .setStyle(
-                            TextInputStyle.Short
-                        );
+            try {
+                const user = await client.users.fetch(userId);
+                await user.send("❌ Refusé tournoi");
+            } catch {}
 
-                const dispo =
-                    new TextInputBuilder()
-                        .setCustomId(
-                            "dispo"
-                        )
-                        .setLabel(
-                            "Disponibilités"
-                        )
-                        .setRequired(true)
-                        .setStyle(
-                            TextInputStyle.Paragraph
-                        );
-
-                modal.addComponents(
-                    new ActionRowBuilder()
-                        .addComponents(
-                            age
-                        ),
-                    new ActionRowBuilder()
-                        .addComponents(
-                            platform
-                        ),
-                    new ActionRowBuilder()
-                        .addComponents(
-                            dispo
-                        )
-                );
-
-                return interaction.showModal(
-                    modal
-                );
-            }
-                            if (
-                interaction.customId.startsWith(
-                    "accept_"
-                )
-            ) {
-
-                if (
-                    !interaction.member.permissions.has(
-                        PermissionFlagsBits.Administrator
-                    )
-                ) {
-
-                    return interaction.reply({
-                        content:
-                            "Permission refusée.",
-                        ephemeral: true
-                    });
-
-                }
-
-                const userId =
-                    interaction.customId.replace(
-                        "accept_",
-                        ""
-                    );
-
-                try {
-
-                    const user =
-                        await client.users.fetch(
-                            userId
-                        );
-
-                    await user.send(
-                        "✅ Votre candidature au tournoi a été acceptée."
-                    );
-
-                } catch {}
-
-                await interaction.message.delete();
-            }
-                            if (
-                interaction.customId.startsWith(
-                    "deny_"
-                )
-            ) {
-
-                if (
-                    !interaction.member.permissions.has(
-                        PermissionFlagsBits.Administrator
-                    )
-                ) {
-
-                    return interaction.reply({
-                        content:
-                            "Permission refusée.",
-                        ephemeral: true
-                    });
-
-                }
-
-                const userId =
-                    interaction.customId.replace(
-                        "deny_",
-                        ""
-                    );
-
-                try {
-
-                    const user =
-                        await client.users.fetch(
-                            userId
-                        );
-
-                    await user.send(
-                        "❌ Votre candidature au tournoi a été refusée."
-                    );
-
-                } catch {}
-
-                await interaction.message.delete();
-            }
-
-            if (
-                interaction.customId.startsWith(
-                    "delete_report_"
-                )
-            ) {
-
-                const reportId =
-                    interaction.customId.replace(
-                        "delete_report_",
-                        ""
-                    );
-
-                const db =
-                    loadDB();
-
-                const report =
-                    db.reports.find(
-                        r =>
-                            r.id ===
-                            reportId
-                    );
-
-                if (
-                    !report
-                ) {
-
-                    return interaction.reply({
-                        content:
-                            "Signalement introuvable.",
-                        ephemeral: true
-                    });
-
-                }
-
-                if (
-                    report.author !==
-                    interaction.user.id
-                ) {
-
-                    return interaction.reply({
-                        content:
-                            "Ce signalement ne vous appartient pas.",
-                        ephemeral: true
-                    });
-
-                }
-
-                db.reports =
-                    db.reports.filter(
-                        r =>
-                            r.id !==
-                            reportId
-                    );
-
-                saveDB(
-                    db
-                );
-
-                return interaction.update({
-                    content:
-                        "✅ Signalement supprimé.",
-                    embeds: [],
-                    components: []
-                });
-            }
+            return interaction.message.delete();
         }
-              if (
-            interaction.isModalSubmit()
-        ) {
 
-            if (
-                interaction.customId ===
-                "tournament_modal"
-            ) {
+        // DELETE REPORT
+        if (interaction.customId.startsWith("delete_report_")) {
 
-                const age =
-                    interaction.fields.getTextInputValue(
-                        "age"
-                    );
+            const id = interaction.customId.replace("delete_report_", "");
+            const db = loadDB();
 
-                const platform =
-                    interaction.fields.getTextInputValue(
-                        "platform"
-                    );
+            db.reports = db.reports.filter(r => r.id !== id);
+            saveDB(db);
 
-                const dispo =
-                    interaction.fields.getTextInputValue(
-                        "dispo"
-                    );
-
-                const embed =
-                    new EmbedBuilder()
-                        .setTitle(
-                            "Nouvelle candidature"
-                        )
-                        .addFields(
-                            {
-                                name:
-                                    "Utilisateur",
-                                value:
-                                    `<@${interaction.user.id}>`
-                            },
-                            {
-                                name:
-                                    "Âge",
-                                value:
-                                    age
-                            },
-                            {
-                                name:
-                                    "Plateforme",
-                                value:
-                                    platform
-                            },
-                            {
-                                name:
-                                    "Disponibilités",
-                                value:
-                                    dispo
-                            }
-                        )
-                        .setTimestamp();
-
-                const row =
-                    new ActionRowBuilder()
-                        .addComponents(
-                            new ButtonBuilder()
-                                .setCustomId(
-                                    `accept_${interaction.user.id}`
-                                )
-                                .setLabel(
-                                    "Accepter"
-                                )
-                                .setStyle(
-                                    ButtonStyle.Success
-                                ),
-                            new ButtonBuilder()
-                                .setCustomId(
-                                    `deny_${interaction.user.id}`
-                                )
-                                .setLabel(
-                                    "Refuser"
-                                )
-                                .setStyle(
-                                    ButtonStyle.Danger
-                                )
-                        );
-
-                const channel =
-                    await client.channels.fetch(
-                        TOURNAMENT_CHANNEL
-                    );
-
-                if (
-                    channel
-                ) {
-
-                    await channel.send({
-                        embeds: [
-                            embed
-                        ],
-                        components: [
-                            row
-                        ]
-                    });
-
-                }
-
-                return interaction.reply({
-                    content:
-                        "✅ Votre candidature a été envoyée.",
-                    ephemeral: true
-                });
-            }                            
-            ) {
-
-                const reason =
-                    interaction.fields.getTextInputValue(
-                        "reason"
-                    );
-
-                const db =
-                    loadDB();
-
-                const report = {
-                    id:
-                        Date.now().toString(),
-                    author:
-                        interaction.user.id,
-                    reason,
-                    createdAt:
-                        Date.now()
-                };
-
-                db.reports.push(
-                    report
-                );
-
-                saveDB(
-                    db
-                );
-
-                return interaction.reply({
-                    content:
-                        "✅ Signalement enregistré.",
-                    ephemeral: true
-                });
-            }
-                            if (
-                interaction.customId ===
-                "signal_modal"
-            ) {
-
-                const reason =
-                    interaction.fields.getTextInputValue(
-                        "reason"
-                    );
-
-                const db =
-                    loadDB();
-
-                const report = {
-                    id:
-                        Date.now().toString(),
-                    author:
-                        interaction.user.id,
-                    reason,
-                    createdAt:
-                        Date.now()
-                };
-
-                db.reports.push(
-                    report
-                );
-
-                saveDB(
-                    db
-                );
-
-                return interaction.reply({
-                    content:
-                        "✅ Signalement enregistré.",
-                    ephemeral: true
-                });
-            }
-                        }
-
+            return interaction.update({
+                content: "Signalement supprimé",
+                embeds: [],
+                components: []
+            });
+        }
     }
-);
-client.login(
-    process.env.TOKEN
-);
+
+    // ===== MODAL =====
+    if (interaction.isModalSubmit()) {
+
+        // TOURNOI
+        if (interaction.customId === "tournament_modal") {
+
+            const embed = new EmbedBuilder()
+                .setTitle("Nouvelle candidature")
+                .addFields(
+                    { name: "User", value: `<@${interaction.user.id}>` },
+                    { name: "Âge", value: interaction.fields.getTextInputValue("age") },
+                    { name: "Plateforme", value: interaction.fields.getTextInputValue("platform") },
+                    { name: "Dispo", value: interaction.fields.getTextInputValue("dispo") }
+                );
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`accept_${interaction.user.id}`)
+                    .setLabel("Accepter")
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId(`deny_${interaction.user.id}`)
+                    .setLabel("Refuser")
+                    .setStyle(ButtonStyle.Danger)
+            );
+
+            const channel = await client.channels.fetch(TOURNAMENT_CHANNEL);
+            await channel.send({ embeds: [embed], components: [row] });
+
+            return interaction.reply({ content: "Envoyé", ephemeral: true });
+        }
+
+        // SIGNAL
+        if (interaction.customId === "signal_modal") {
+
+            const db = loadDB();
+
+            db.reports.push({
+                id: Date.now().toString(),
+                userId: interaction.user.id,
+                reason: interaction.fields.getTextInputValue("reason"),
+                createdAt: Date.now()
+            });
+
+            saveDB(db);
+
+            return interaction.reply({ content: "Signal envoyé", ephemeral: true });
+        }
+    }
+});
+
+client.login(process.env.TOKEN);
