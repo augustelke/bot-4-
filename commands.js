@@ -7,7 +7,21 @@ const {
     ButtonStyle
 } = require("discord.js");
 
-const reports = []; // mémoire simple (pas de database)
+const fs = require("fs");
+
+// ================= DATABASE SIMPLE =================
+const DB_PATH = "./database.json";
+
+function loadDB() {
+    if (!fs.existsSync(DB_PATH)) {
+        fs.writeFileSync(DB_PATH, JSON.stringify({ reports: [] }, null, 2));
+    }
+    return JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
+}
+
+function saveDB(data) {
+    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+}
 
 module.exports = [
 
@@ -15,23 +29,26 @@ module.exports = [
     {
         data: new SlashCommandBuilder()
             .setName("help")
-            .setDescription("Affiche toutes les commandes du bot"),
+            .setDescription("Affiche toutes les commandes"),
 
         async execute(interaction) {
 
             const embed = new EmbedBuilder()
-                .setTitle("📖 Aide du bot")
+                .setTitle("📖 BOT PRO - HELP")
                 .setColor("Blue")
                 .setDescription(`
-🎟️ /tournage → Créer un tournoi (admin)
-🚨 /signal → Envoyer un signalement
-📋 /supsignal → Voir ses signalements
-📊 /voirsignal → Voir signalements (admin)
+🎟️ **Tournoi**
+/tournage
 
-🛡️ Modération:
+🚨 **Signalements**
+/signal
+/supsignal
+/voirsignal
+
+🛡️ **Modération**
 /kick /ban /mute /clear /lock /unlock /slowmode
 
-🎲 Fun:
+🎲 **Fun**
 /roulette
                 `);
 
@@ -43,7 +60,7 @@ module.exports = [
     {
         data: new SlashCommandBuilder()
             .setName("tournage")
-            .setDescription("Créer un tournoi (admin uniquement)")
+            .setDescription("Créer un tournoi (admin)")
             .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
             .addStringOption(o =>
                 o.setName("nom")
@@ -52,12 +69,12 @@ module.exports = [
             )
             .addStringOption(o =>
                 o.setName("horaire")
-                    .setDescription("Horaire du tournoi")
+                    .setDescription("Horaire")
                     .setRequired(true)
             )
             .addStringOption(o =>
                 o.setName("description")
-                    .setDescription("Description du tournoi")
+                    .setDescription("Description")
                     .setRequired(true)
             ),
 
@@ -96,19 +113,27 @@ module.exports = [
             .setDescription("Envoyer un signalement")
             .addStringOption(o =>
                 o.setName("raison")
-                    .setDescription("Raison du signalement")
+                    .setDescription("Raison")
                     .setRequired(true)
             ),
 
         async execute(interaction) {
 
-            reports.push({
+            const db = loadDB();
+
+            db.reports.push({
                 id: Date.now().toString(),
                 user: interaction.user.id,
-                reason: interaction.options.getString("raison")
+                reason: interaction.options.getString("raison"),
+                date: Date.now()
             });
 
-            return interaction.reply({ content: "Signal envoyé", ephemeral: true });
+            saveDB(db);
+
+            return interaction.reply({
+                content: "✅ Signalement envoyé",
+                ephemeral: true
+            });
         }
     },
 
@@ -120,13 +145,33 @@ module.exports = [
 
         async execute(interaction) {
 
-            const userReports = reports.filter(r => r.user === interaction.user.id);
+            const db = loadDB();
+            const reports = db.reports.filter(r => r.user === interaction.user.id);
 
-            if (!userReports.length)
+            if (!reports.length)
                 return interaction.reply({ content: "Aucun signalement", ephemeral: true });
 
+            const embed = new EmbedBuilder()
+                .setTitle("📋 Tes signalements")
+                .setColor("Red")
+                .setDescription(
+                    reports.map(r =>
+                        `🆔 ${r.id} - ${r.reason}`
+                    ).join("\n")
+                );
+
+            const row = new ActionRowBuilder().addComponents(
+                reports.slice(0, 5).map(r =>
+                    new ButtonBuilder()
+                        .setCustomId(`delete_report_${r.id}`)
+                        .setLabel("Supprimer")
+                        .setStyle(ButtonStyle.Danger)
+                )
+            );
+
             return interaction.reply({
-                content: userReports.map(r => `ID: ${r.id} | ${r.reason}`).join("\n"),
+                embeds: [embed],
+                components: [row],
                 ephemeral: true
             });
         }
@@ -136,18 +181,26 @@ module.exports = [
     {
         data: new SlashCommandBuilder()
             .setName("voirsignal")
-            .setDescription("Voir tous les signalements (admin)")
+            .setDescription("Voir tous les signalements")
             .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
         async execute(interaction) {
 
-            if (!reports.length)
+            const db = loadDB();
+
+            if (!db.reports.length)
                 return interaction.reply({ content: "Aucun signalement", ephemeral: true });
 
-            return interaction.reply({
-                content: reports.map(r => `<@${r.user}> - ${r.reason}`).join("\n"),
-                ephemeral: true
-            });
+            const embed = new EmbedBuilder()
+                .setTitle("📊 Signalements globaux")
+                .setColor("Orange")
+                .setDescription(
+                    db.reports.map(r =>
+                        `<@${r.user}> → ${r.reason}`
+                    ).join("\n")
+                );
+
+            return interaction.reply({ embeds: [embed], ephemeral: true });
         }
     },
 
@@ -155,7 +208,7 @@ module.exports = [
     {
         data: new SlashCommandBuilder()
             .setName("kick")
-            .setDescription("Expulser un membre")
+            .setDescription("Kick un membre")
             .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
             .addUserOption(o =>
                 o.setName("user")
@@ -170,7 +223,7 @@ module.exports = [
 
             await member.kick();
 
-            return interaction.reply({ content: `${user.tag} kick`, ephemeral: true });
+            return interaction.reply({ content: `👢 ${user.tag} kick`, ephemeral: true });
         }
     },
 
@@ -178,7 +231,7 @@ module.exports = [
     {
         data: new SlashCommandBuilder()
             .setName("ban")
-            .setDescription("Bannir un membre")
+            .setDescription("Ban un membre")
             .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
             .addUserOption(o =>
                 o.setName("user")
@@ -192,7 +245,7 @@ module.exports = [
 
             await interaction.guild.members.ban(user.id);
 
-            return interaction.reply({ content: `${user.tag} ban`, ephemeral: true });
+            return interaction.reply({ content: `🔨 ${user.tag} ban`, ephemeral: true });
         }
     },
 
