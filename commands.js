@@ -62,37 +62,37 @@ module.exports = [
     // /signal (FIX IMPORTANT)
     // =========================
     {
-        data: new SlashCommandBuilder()
-            .setName("signal")
-            .setDescription("Envoyer un signalement")
-            .addStringOption(o =>
-                o.setName("raison")
-                    .setDescription("Raison du signalement")
-                    .setRequired(true)
-            ),
+    data: new SlashCommandBuilder()
+        .setName("signal")
+        .setDescription("Envoyer un signalement")
+        .addStringOption(o =>
+            o.setName("raison")
+                .setDescription("Raison du signalement")
+                .setRequired(true)
+        ),
 
-        async execute(interaction, loadDB, saveDB) {
+    async execute(interaction, loadDB, saveDB) {
 
-            const reason = interaction.options.getString("raison");
+        const reason = interaction.options.getString("raison");
 
-            const db = loadDB();
+        const db = loadDB();
 
-            const report = {
-                id: Date.now().toString(),
-                userId: interaction.user.id, // ✅ FIX IMPORTANT
-                reason: reason,
-                createdAt: Date.now()
-            };
+        const report = {
+            id: Date.now().toString(),
+            userId: interaction.user.id, // 👈 toujours celui qui signale
+            reason: reason,
+            createdAt: Date.now()
+        };
 
-            db.reports.push(report);
-            saveDB(db);
+        db.reports.push(report);
+        saveDB(db);
 
-            return interaction.reply({
-                content: "✅ Signalement envoyé.",
-                ephemeral: true
-            });
-        }
-    },
+        return interaction.reply({
+            content: "✅ Signalement envoyé avec la raison uniquement.",
+            ephemeral: true
+        });
+    }
+}
 
     // =========================
     // /supsignal (FIX BUTTON)
