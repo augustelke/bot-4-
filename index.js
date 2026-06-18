@@ -21,10 +21,7 @@ const commands = require("./commands");
 
 const client = new Client({
     intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.DirectMessages
+        GatewayIntentBits.Guilds
     ]
 });
 
@@ -36,11 +33,9 @@ for (const cmd of commands) {
     client.commands.set(cmd.data.name, cmd);
 }
 
-// ================= DB =================
+// ================= DATABASE =================
 if (!fs.existsSync("./database.json")) {
-    fs.writeFileSync("./database.json", JSON.stringify({
-        reports: []
-    }, null, 2));
+    fs.writeFileSync("./database.json", JSON.stringify({ reports: [] }, null, 2));
 }
 
 const loadDB = () => JSON.parse(fs.readFileSync("./database.json", "utf8"));
@@ -59,13 +54,13 @@ client.once("ready", async () => {
         }
     );
 
-    console.log("Slash commands enregistrées");
+    console.log("Slash commands OK");
 });
 
 // ================= INTERACTIONS =================
 client.on("interactionCreate", async interaction => {
 
-    // ===== COMMANDS =====
+    // COMMANDS
     if (interaction.isChatInputCommand()) {
         const cmd = client.commands.get(interaction.commandName);
         if (!cmd) return;
@@ -78,15 +73,14 @@ client.on("interactionCreate", async interaction => {
         }
     }
 
-    // ===== BUTTONS =====
+    // BUTTONS
     if (interaction.isButton()) {
 
-        // PARTICIPATION TOURNOI
         if (interaction.customId === "participate_tournament") {
 
             const modal = new ModalBuilder()
                 .setCustomId("tournament_modal")
-                .setTitle("Participation tournoi");
+                .setTitle("Tournoi");
 
             const age = new TextInputBuilder()
                 .setCustomId("age")
@@ -106,48 +100,41 @@ client.on("interactionCreate", async interaction => {
                 .setStyle(TextInputStyle.Paragraph)
                 .setRequired(true);
 
-            modal.addComponents(
+            return interaction.showModal(
                 new ActionRowBuilder().addComponents(age),
                 new ActionRowBuilder().addComponents(platform),
                 new ActionRowBuilder().addComponents(dispo)
             );
-
-            return interaction.showModal(modal);
         }
 
-        // ACCEPT
         if (interaction.customId.startsWith("accept_")) {
-
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
-                return interaction.reply({ content: "Pas permission", ephemeral: true });
+                return interaction.reply({ content: "No perms", ephemeral: true });
 
-            const userId = interaction.customId.split("_")[1];
+            const id = interaction.customId.split("_")[1];
 
             try {
-                const user = await client.users.fetch(userId);
-                await user.send("✅ Accepté tournoi");
+                const user = await client.users.fetch(id);
+                await user.send("✅ Accepté");
             } catch {}
 
             return interaction.message.delete();
         }
 
-        // DENY
         if (interaction.customId.startsWith("deny_")) {
-
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
-                return interaction.reply({ content: "Pas permission", ephemeral: true });
+                return interaction.reply({ content: "No perms", ephemeral: true });
 
-            const userId = interaction.customId.split("_")[1];
+            const id = interaction.customId.split("_")[1];
 
             try {
-                const user = await client.users.fetch(userId);
-                await user.send("❌ Refusé tournoi");
+                const user = await client.users.fetch(id);
+                await user.send("❌ Refusé");
             } catch {}
 
             return interaction.message.delete();
         }
 
-        // DELETE REPORT
         if (interaction.customId.startsWith("delete_report_")) {
 
             const id = interaction.customId.replace("delete_report_", "");
@@ -157,21 +144,20 @@ client.on("interactionCreate", async interaction => {
             saveDB(db);
 
             return interaction.update({
-                content: "Signalement supprimé",
+                content: "Supprimé",
                 embeds: [],
                 components: []
             });
         }
     }
 
-    // ===== MODAL =====
+    // MODAL
     if (interaction.isModalSubmit()) {
 
-        // TOURNOI
         if (interaction.customId === "tournament_modal") {
 
             const embed = new EmbedBuilder()
-                .setTitle("Nouvelle candidature")
+                .setTitle("Candidature")
                 .addFields(
                     { name: "User", value: `<@${interaction.user.id}>` },
                     { name: "Âge", value: interaction.fields.getTextInputValue("age") },
@@ -196,7 +182,6 @@ client.on("interactionCreate", async interaction => {
             return interaction.reply({ content: "Envoyé", ephemeral: true });
         }
 
-        // SIGNAL
         if (interaction.customId === "signal_modal") {
 
             const db = loadDB();
