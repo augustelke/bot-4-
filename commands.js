@@ -399,47 +399,6 @@ module.exports = [
         }
     },
   {
-    data: new SlashCommandBuilder()
-        .setName("help")
-        .setDescription("Affiche toutes les commandes du bot"),
-
-    async execute(interaction) {
-
-        const embed = new EmbedBuilder()
-            .setTitle("📖 Aide du bot")
-            .setColor("Blue")
-            .setDescription(
-                `
-**🎟️ Tournoi**
-/tournage → Créer un tournoi (admin)
-/signal → Envoyer un signalement
-/supsignal → Voir ses signalements
-/voirsignal → Voir tous les signalements (admin)
-
-**🛡️ Modération (admin)**
-/kick → Expulser un membre
-/ban → Bannir un membre
-/mute → Timeout un membre
-/warn → (si ajouté) avertir un membre
-/clear → Supprimer des messages
-/lock → Verrouiller un salon
-/unlock → Déverrouiller un salon
-/slowmode → Activer le slowmode
-
-**🎲 Fun**
-/roulette → Génère un nombre aléatoire
-
-**ℹ️ Autre**
-/help → Affiche ce message
-                `
-            );
-
-        return interaction.reply({
-            embeds: [embed],
-            ephemeral: true
-        });
-    }
-}
       {
         data: new SlashCommandBuilder()
             .setName("roulette")
@@ -453,5 +412,46 @@ module.exports = [
                 content: `🎲 ${number}`
             });
         }
-    }
+    },
+];
+module.exports = [
+   {
+        data: new SlashCommandBuilder()
+            .setName("help")
+            .setDescription("Affiche toutes les commandes du bot"),
+
+        async execute(interaction) {
+
+            const embed = new EmbedBuilder()
+                .setTitle("📖 Aide du bot")
+                .setColor("Blue")
+                .setDescription(`
+**🎟️ Tournoi**
+/tournage → Créer un tournoi (admin)
+/signal → Envoyer un signalement
+/supsignal → Voir ses signalements
+/voirsignal → Voir tous les signalements (admin)
+
+**🛡️ Modération (admin)**
+/kick → Expulser un membre
+/ban → Bannir un membre
+/mute → Timeout un membre
+/clear → Supprimer des messages
+/lock → Verrouiller un salon
+/unlock → Déverrouiller un salon
+/slowmode → Activer le slowmode
+
+**🎲 Fun**
+/roulette → Génère un nombre aléatoire
+
+**ℹ️ Autre**
+/help → Affiche ce message
+                `);
+
+            return interaction.reply({
+                embeds: [embed],
+                ephemeral: true
+            });
+        }
+   }
 ];
