@@ -1,11 +1,13 @@
 const {
     SlashCommandBuilder,
     EmbedBuilder,
-    PermissionFlagsBits
+    PermissionFlagsBits,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle
 } = require("discord.js");
 
-// mini mémoire signal
-const reports = [];
+const reports = []; // mémoire simple (pas de database)
 
 module.exports = [
 
@@ -13,18 +15,23 @@ module.exports = [
     {
         data: new SlashCommandBuilder()
             .setName("help")
-            .setDescription("Aide"),
+            .setDescription("Affiche toutes les commandes du bot"),
 
         async execute(interaction) {
 
             const embed = new EmbedBuilder()
-                .setTitle("Help")
+                .setTitle("📖 Aide du bot")
+                .setColor("Blue")
                 .setDescription(`
-/tournage
-/signal
-/supsignal
-/voirsignal
+🎟️ /tournage → Créer un tournoi (admin)
+🚨 /signal → Envoyer un signalement
+📋 /supsignal → Voir ses signalements
+📊 /voirsignal → Voir signalements (admin)
+
+🛡️ Modération:
 /kick /ban /mute /clear /lock /unlock /slowmode
+
+🎲 Fun:
 /roulette
                 `);
 
@@ -36,11 +43,23 @@ module.exports = [
     {
         data: new SlashCommandBuilder()
             .setName("tournage")
-            .setDescription("Créer tournoi")
+            .setDescription("Créer un tournoi (admin uniquement)")
             .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-            .addStringOption(o => o.setName("nom").setRequired(true))
-            .addStringOption(o => o.setName("horaire").setRequired(true))
-            .addStringOption(o => o.setName("description").setRequired(true)),
+            .addStringOption(o =>
+                o.setName("nom")
+                    .setDescription("Nom du tournoi")
+                    .setRequired(true)
+            )
+            .addStringOption(o =>
+                o.setName("horaire")
+                    .setDescription("Horaire du tournoi")
+                    .setRequired(true)
+            )
+            .addStringOption(o =>
+                o.setName("description")
+                    .setDescription("Description du tournoi")
+                    .setRequired(true)
+            ),
 
         async execute(interaction) {
 
@@ -49,23 +68,24 @@ module.exports = [
             const desc = interaction.options.getString("description");
 
             const embed = new EmbedBuilder()
-                .setTitle(nom)
+                .setTitle(`🏆 ${nom}`)
+                .setColor("Gold")
                 .addFields(
-                    { name: "Horaire", value: horaire },
-                    { name: "Description", value: desc }
+                    { name: "📅 Horaire", value: horaire },
+                    { name: "📝 Description", value: desc }
                 );
 
-            const row = new (require("discord.js").ActionRowBuilder)().addComponents(
-                new (require("discord.js").ButtonBuilder)()
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
                     .setCustomId("participate_tournament")
                     .setLabel("Participer")
-                    .setStyle(require("discord.js").ButtonStyle.Success)
+                    .setStyle(ButtonStyle.Success)
             );
 
-            await interaction.reply({ content: "OK", ephemeral: true });
+            await interaction.reply({ content: "Tournoi créé", ephemeral: true });
 
             const channel = await interaction.client.channels.fetch("1502721949376188478");
-            channel.send({ embeds: [embed], components: [row] });
+            if (channel) channel.send({ embeds: [embed], components: [row] });
         }
     },
 
@@ -73,8 +93,12 @@ module.exports = [
     {
         data: new SlashCommandBuilder()
             .setName("signal")
-            .setDescription("Signalement")
-            .addStringOption(o => o.setName("raison").setRequired(true)),
+            .setDescription("Envoyer un signalement")
+            .addStringOption(o =>
+                o.setName("raison")
+                    .setDescription("Raison du signalement")
+                    .setRequired(true)
+            ),
 
         async execute(interaction) {
 
@@ -92,31 +116,83 @@ module.exports = [
     {
         data: new SlashCommandBuilder()
             .setName("supsignal")
-            .setDescription("Voir signalements"),
+            .setDescription("Voir ses signalements"),
 
         async execute(interaction) {
 
             const userReports = reports.filter(r => r.user === interaction.user.id);
 
+            if (!userReports.length)
+                return interaction.reply({ content: "Aucun signalement", ephemeral: true });
+
             return interaction.reply({
-                content: JSON.stringify(userReports, null, 2),
+                content: userReports.map(r => `ID: ${r.id} | ${r.reason}`).join("\n"),
                 ephemeral: true
             });
         }
     },
 
-    // ================= VOIR SIGNAL =================
+    // ================= VOIR SIGNAL (ADMIN) =================
     {
         data: new SlashCommandBuilder()
             .setName("voirsignal")
-            .setDescription("Admin signal")
+            .setDescription("Voir tous les signalements (admin)")
             .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
         async execute(interaction) {
+
+            if (!reports.length)
+                return interaction.reply({ content: "Aucun signalement", ephemeral: true });
+
             return interaction.reply({
-                content: JSON.stringify(reports, null, 2),
+                content: reports.map(r => `<@${r.user}> - ${r.reason}`).join("\n"),
                 ephemeral: true
             });
+        }
+    },
+
+    // ================= KICK =================
+    {
+        data: new SlashCommandBuilder()
+            .setName("kick")
+            .setDescription("Expulser un membre")
+            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+            .addUserOption(o =>
+                o.setName("user")
+                    .setDescription("Utilisateur")
+                    .setRequired(true)
+            ),
+
+        async execute(interaction) {
+
+            const user = interaction.options.getUser("user");
+            const member = await interaction.guild.members.fetch(user.id);
+
+            await member.kick();
+
+            return interaction.reply({ content: `${user.tag} kick`, ephemeral: true });
+        }
+    },
+
+    // ================= BAN =================
+    {
+        data: new SlashCommandBuilder()
+            .setName("ban")
+            .setDescription("Bannir un membre")
+            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+            .addUserOption(o =>
+                o.setName("user")
+                    .setDescription("Utilisateur")
+                    .setRequired(true)
+            ),
+
+        async execute(interaction) {
+
+            const user = interaction.options.getUser("user");
+
+            await interaction.guild.members.ban(user.id);
+
+            return interaction.reply({ content: `${user.tag} ban`, ephemeral: true });
         }
     },
 
@@ -124,10 +200,13 @@ module.exports = [
     {
         data: new SlashCommandBuilder()
             .setName("roulette")
-            .setDescription("random"),
+            .setDescription("Nombre aléatoire"),
 
         async execute(interaction) {
-            return interaction.reply(`🎲 ${Math.floor(Math.random() * 100)}`);
+
+            const number = Math.floor(Math.random() * 100) + 1;
+
+            return interaction.reply(`🎲 ${number}`);
         }
     }
 ];
