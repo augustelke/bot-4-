@@ -490,10 +490,7 @@ client.on(
                         "✅ Votre candidature a été envoyée.",
                     ephemeral: true
                 });
-            }
-                            if (
-                interaction.customId ===
-                "signal_modal"
+            }                            
             ) {
 
                 const reason =
