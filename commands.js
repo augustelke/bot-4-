@@ -398,9 +398,8 @@ module.exports = [
             });
         }
     },
-  {
-      {
-        data: new SlashCommandBuilder()
+{
+    data: new SlashCommandBuilder()
             .setName("roulette")
             .setDescription("Nombre aléatoire"),
 
