@@ -1,5 +1,3 @@
-require("dotenv").config();
-
 const {
     Client,
     GatewayIntentBits,
@@ -16,11 +14,12 @@ const {
     PermissionFlagsBits
 } = require("discord.js");
 
-const fs = require("fs");
 const commands = require("./commands");
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [
+        GatewayIntentBits.Guilds
+    ]
 });
 
 const TOURNAMENT_CHANNEL = "1502721949376188478";
@@ -31,15 +30,6 @@ for (const cmd of commands) {
     client.commands.set(cmd.data.name, cmd);
 }
 
-// DB
-if (!fs.existsSync("./database.json")) {
-    fs.writeFileSync("./database.json", JSON.stringify({ reports: [] }, null, 2));
-}
-
-const loadDB = () => JSON.parse(fs.readFileSync("./database.json", "utf8"));
-const saveDB = (data) => fs.writeFileSync("./database.json", JSON.stringify(data, null, 2));
-
-// READY
 client.once("ready", async () => {
     console.log(`${client.user.tag} connecté`);
 
@@ -50,33 +40,35 @@ client.once("ready", async () => {
         { body: commands.map(c => c.data.toJSON()) }
     );
 
-    console.log("Commands OK");
+    console.log("Slash commands enregistrées");
 });
 
-// INTERACTIONS
-client.on("interactionCreate", async interaction => {
+client.on("interactionCreate", async (interaction) => {
 
-    // COMMANDS
+    // ================= COMMANDS =================
     if (interaction.isChatInputCommand()) {
-        const cmd = client.commands.get(interaction.commandName);
-        if (!cmd) return;
+        const command = client.commands.get(interaction.commandName);
+        if (!command) return;
 
         try {
-            await cmd.execute(interaction, loadDB, saveDB, client);
+            await command.execute(interaction);
         } catch (e) {
             console.error(e);
-            return interaction.reply({ content: "Erreur bot", ephemeral: true });
+            return interaction.reply({
+                content: "Erreur commande",
+                ephemeral: true
+            });
         }
     }
 
-    // BUTTONS
+    // ================= BUTTONS =================
     if (interaction.isButton()) {
 
         if (interaction.customId === "participate_tournament") {
 
             const modal = new ModalBuilder()
                 .setCustomId("tournament_modal")
-                .setTitle("Participation");
+                .setTitle("Participation tournoi");
 
             const age = new TextInputBuilder()
                 .setCustomId("age")
@@ -96,65 +88,42 @@ client.on("interactionCreate", async interaction => {
                 .setStyle(TextInputStyle.Paragraph)
                 .setRequired(true);
 
-            return interaction.showModal(
+            modal.addComponents(
                 new ActionRowBuilder().addComponents(age),
                 new ActionRowBuilder().addComponents(platform),
                 new ActionRowBuilder().addComponents(dispo)
             );
+
+            return interaction.showModal(modal);
         }
 
-        if (interaction.customId.startsWith("accept_")) {
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
-                return interaction.reply({ content: "No perms", ephemeral: true });
+        // ACCEPT / DENY
+        if (interaction.customId.startsWith("accept_") || interaction.customId.startsWith("deny_")) {
 
-            const id = interaction.customId.split("_")[1];
+            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+                return interaction.reply({ content: "No permission", ephemeral: true });
+            }
 
-            try {
-                const user = await client.users.fetch(id);
+            const userId = interaction.customId.split("_")[1];
+            const user = await client.users.fetch(userId);
+
+            if (interaction.customId.startsWith("accept_")) {
                 await user.send("✅ Accepté tournoi");
-            } catch {}
-
-            return interaction.message.delete();
-        }
-
-        if (interaction.customId.startsWith("deny_")) {
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
-                return interaction.reply({ content: "No perms", ephemeral: true });
-
-            const id = interaction.customId.split("_")[1];
-
-            try {
-                const user = await client.users.fetch(id);
+            } else {
                 await user.send("❌ Refusé tournoi");
-            } catch {}
+            }
 
-            return interaction.message.delete();
-        }
-
-        if (interaction.customId.startsWith("delete_report_")) {
-
-            const id = interaction.customId.replace("delete_report_", "");
-            const db = loadDB();
-
-            db.reports = db.reports.filter(r => r.id !== id);
-            saveDB(db);
-
-            return interaction.update({
-                content: "Signal supprimé",
-                embeds: [],
-                components: []
-            });
+            await interaction.message.delete();
         }
     }
 
-    // MODALS
+    // ================= MODAL =================
     if (interaction.isModalSubmit()) {
 
-        // TOURNOI
         if (interaction.customId === "tournament_modal") {
 
             const embed = new EmbedBuilder()
-                .setTitle("Candidature tournoi")
+                .setTitle("Nouvelle candidature")
                 .addFields(
                     { name: "User", value: `<@${interaction.user.id}>` },
                     { name: "Âge", value: interaction.fields.getTextInputValue("age") },
@@ -174,26 +143,13 @@ client.on("interactionCreate", async interaction => {
             );
 
             const channel = await client.channels.fetch(TOURNAMENT_CHANNEL);
+
             await channel.send({ embeds: [embed], components: [row] });
 
-            return interaction.reply({ content: "Envoyé", ephemeral: true });
-        }
-
-        // SIGNAL
-        if (interaction.customId === "signal_modal") {
-
-            const db = loadDB();
-
-            db.reports.push({
-                id: Date.now().toString(),
-                userId: interaction.user.id,
-                reason: interaction.fields.getTextInputValue("reason"),
-                createdAt: Date.now()
+            return interaction.reply({
+                content: "Envoyé",
+                ephemeral: true
             });
-
-            saveDB(db);
-
-            return interaction.reply({ content: "Signal envoyé", ephemeral: true });
         }
     }
 });
