@@ -20,9 +20,7 @@ const fs = require("fs");
 const commands = require("./commands");
 
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds
-    ]
+    intents: [GatewayIntentBits.Guilds]
 });
 
 const TOURNAMENT_CHANNEL = "1502721949376188478";
@@ -33,7 +31,7 @@ for (const cmd of commands) {
     client.commands.set(cmd.data.name, cmd);
 }
 
-// ================= DATABASE =================
+// DB
 if (!fs.existsSync("./database.json")) {
     fs.writeFileSync("./database.json", JSON.stringify({ reports: [] }, null, 2));
 }
@@ -41,7 +39,7 @@ if (!fs.existsSync("./database.json")) {
 const loadDB = () => JSON.parse(fs.readFileSync("./database.json", "utf8"));
 const saveDB = (data) => fs.writeFileSync("./database.json", JSON.stringify(data, null, 2));
 
-// ================= READY =================
+// READY
 client.once("ready", async () => {
     console.log(`${client.user.tag} connecté`);
 
@@ -49,15 +47,13 @@ client.once("ready", async () => {
 
     await rest.put(
         Routes.applicationCommands(process.env.CLIENT_ID),
-        {
-            body: commands.map(c => c.data.toJSON())
-        }
+        { body: commands.map(c => c.data.toJSON()) }
     );
 
-    console.log("Slash commands OK");
+    console.log("Commands OK");
 });
 
-// ================= INTERACTIONS =================
+// INTERACTIONS
 client.on("interactionCreate", async interaction => {
 
     // COMMANDS
@@ -80,7 +76,7 @@ client.on("interactionCreate", async interaction => {
 
             const modal = new ModalBuilder()
                 .setCustomId("tournament_modal")
-                .setTitle("Tournoi");
+                .setTitle("Participation");
 
             const age = new TextInputBuilder()
                 .setCustomId("age")
@@ -115,7 +111,7 @@ client.on("interactionCreate", async interaction => {
 
             try {
                 const user = await client.users.fetch(id);
-                await user.send("✅ Accepté");
+                await user.send("✅ Accepté tournoi");
             } catch {}
 
             return interaction.message.delete();
@@ -129,7 +125,7 @@ client.on("interactionCreate", async interaction => {
 
             try {
                 const user = await client.users.fetch(id);
-                await user.send("❌ Refusé");
+                await user.send("❌ Refusé tournoi");
             } catch {}
 
             return interaction.message.delete();
@@ -144,20 +140,21 @@ client.on("interactionCreate", async interaction => {
             saveDB(db);
 
             return interaction.update({
-                content: "Supprimé",
+                content: "Signal supprimé",
                 embeds: [],
                 components: []
             });
         }
     }
 
-    // MODAL
+    // MODALS
     if (interaction.isModalSubmit()) {
 
+        // TOURNOI
         if (interaction.customId === "tournament_modal") {
 
             const embed = new EmbedBuilder()
-                .setTitle("Candidature")
+                .setTitle("Candidature tournoi")
                 .addFields(
                     { name: "User", value: `<@${interaction.user.id}>` },
                     { name: "Âge", value: interaction.fields.getTextInputValue("age") },
@@ -182,6 +179,7 @@ client.on("interactionCreate", async interaction => {
             return interaction.reply({ content: "Envoyé", ephemeral: true });
         }
 
+        // SIGNAL
         if (interaction.customId === "signal_modal") {
 
             const db = loadDB();
