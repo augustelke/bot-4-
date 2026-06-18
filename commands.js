@@ -58,39 +58,48 @@ module.exports = [
     // =========================
     // /signal (FIX PROPRE)
     // =========================
-    {
-        data: new SlashCommandBuilder()
-            .setName("signal")
-            .setDescription("Envoyer un signalement")
-            .addStringOption(o =>
-                o.setName("raison")
-                    .setDescription("Raison du signalement")
-                    .setRequired(true)
-            ),
+   const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
 
-        async execute(interaction, loadDB, saveDB) {
+module.exports = [
 
-            const reason = interaction.options.getString("raison");
+{
+    data: new SlashCommandBuilder()
+        .setName("signal")
+        .setDescription("Signaler un utilisateur")
+        .addUserOption(option =>
+            option
+                .setName("utilisateur")
+                .setDescription("Utilisateur à signaler")
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option
+                .setName("raison")
+                .setDescription("Raison du signalement")
+                .setRequired(true)
+        ),
 
-            const db = loadDB();
-            if (!db.reports) db.reports = [];
+    async execute(interaction) {
 
-            db.reports.push({
-                id: Date.now().toString(),
-                userId: interaction.user.id,
-                reason,
-                createdAt: Date.now()
-            });
+        const user = interaction.options.getUser("utilisateur");
+        const reason = interaction.options.getString("raison");
 
-            saveDB(db);
+        await interaction.reply({
+            content: `🚨 Signal envoyé\nUtilisateur: <@${user.id}>\nRaison: ${reason}`,
+            ephemeral: true
+        });
 
-            return interaction.reply({
-                content: "✅ Signalement envoyé.",
-                ephemeral: true
+        const channel = interaction.channel;
+
+        if (channel) {
+            channel.send({
+                content: `🚨 SIGNAL\nUtilisateur: <@${user.id}>\nRaison: ${reason}`
             });
         }
-    },
+    }
+}
 
+];
     // =========================
     // /supsignal
     // =========================
