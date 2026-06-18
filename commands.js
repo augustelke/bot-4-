@@ -65,35 +65,45 @@ module.exports = [
     data: new SlashCommandBuilder()
         .setName("signal")
         .setDescription("Envoyer un signalement")
-        .addStringOption(o =>
-            o.setName("raison")
+        .addStringOption(option =>
+            option.setName("raison")
                 .setDescription("Raison du signalement")
                 .setRequired(true)
         ),
 
     async execute(interaction, loadDB, saveDB) {
 
-        const reason = interaction.options.getString("raison");
+        try {
+            const reason = interaction.options.getString("raison");
 
-        const db = loadDB();
+            const db = loadDB();
 
-        const report = {
-            id: Date.now().toString(),
-            userId: interaction.user.id, // 👈 toujours celui qui signale
-            reason: reason,
-            createdAt: Date.now()
-        };
+            if (!db.reports) db.reports = [];
 
-        db.reports.push(report);
-        saveDB(db);
+            db.reports.push({
+                id: Date.now().toString(),
+                userId: interaction.user.id,
+                reason: reason,
+                createdAt: Date.now()
+            });
 
-        return interaction.reply({
-            content: "✅ Signalement envoyé avec la raison uniquement.",
-            ephemeral: true
-        });
+            saveDB(db);
+
+            return interaction.reply({
+                content: "✅ Signalement envoyé.",
+                ephemeral: true
+            });
+
+        } catch (err) {
+            console.error(err);
+
+            return interaction.reply({
+                content: "❌ Erreur lors de l'envoi du signalement.",
+                ephemeral: true
+            });
+        }
     }
 }
-
     // =========================
     // /supsignal (FIX BUTTON)
     // =========================
