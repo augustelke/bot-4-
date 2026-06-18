@@ -11,14 +11,19 @@ const {
     EmbedBuilder,
     ButtonBuilder,
     ButtonStyle,
-    PermissionFlagsBits
+    PermissionFlagsBits,
+    SlashCommandBuilder
 } = require("discord.js");
 
 const commands = require("./commands");
 
 const client = new Client({
     intents: [
-        GatewayIntentBits.Guilds
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages
     ]
 });
 
@@ -26,6 +31,7 @@ const TOURNAMENT_CHANNEL = "1502721949376188478";
 
 client.commands = new Collection();
 
+// load commands
 for (const cmd of commands) {
     client.commands.set(cmd.data.name, cmd);
 }
@@ -35,27 +41,32 @@ client.once("ready", async () => {
 
     const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
-    await rest.put(
-        Routes.applicationCommands(process.env.CLIENT_ID),
-        { body: commands.map(c => c.data.toJSON()) }
-    );
+    try {
+        await rest.put(
+            Routes.applicationCommands(process.env.CLIENT_ID),
+            { body: commands.map(c => c.data.toJSON()) }
+        );
 
-    console.log("Slash commands enregistrées");
+        console.log("Slash commands enregistrées");
+    } catch (err) {
+        console.error(err);
+    }
 });
 
 client.on("interactionCreate", async (interaction) => {
 
-    // ================= COMMANDS =================
+    // ================= SLASH COMMANDS =================
     if (interaction.isChatInputCommand()) {
+
         const command = client.commands.get(interaction.commandName);
         if (!command) return;
 
         try {
-            await command.execute(interaction);
-        } catch (e) {
-            console.error(e);
+            await command.execute(interaction, client);
+        } catch (err) {
+            console.error(err);
             return interaction.reply({
-                content: "Erreur commande",
+                content: "Erreur commande.",
                 ephemeral: true
             });
         }
@@ -64,6 +75,7 @@ client.on("interactionCreate", async (interaction) => {
     // ================= BUTTONS =================
     if (interaction.isButton()) {
 
+        // participation tournoi
         if (interaction.customId === "participate_tournament") {
 
             const modal = new ModalBuilder()
@@ -97,38 +109,58 @@ client.on("interactionCreate", async (interaction) => {
             return interaction.showModal(modal);
         }
 
-        // ACCEPT / DENY
-        if (interaction.customId.startsWith("accept_") || interaction.customId.startsWith("deny_")) {
+        // accept
+        if (interaction.customId.startsWith("accept_")) {
 
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return interaction.reply({ content: "No permission", ephemeral: true });
+                return interaction.reply({ content: "Non autorisé.", ephemeral: true });
             }
 
             const userId = interaction.customId.split("_")[1];
-            const user = await client.users.fetch(userId);
 
-            if (interaction.customId.startsWith("accept_")) {
-                await user.send("✅ Accepté tournoi");
-            } else {
-                await user.send("❌ Refusé tournoi");
+            try {
+                const user = await client.users.fetch(userId);
+                await user.send("✅ Candidature acceptée.");
+            } catch {}
+
+            return interaction.message.delete();
+        }
+
+        // deny
+        if (interaction.customId.startsWith("deny_")) {
+
+            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+                return interaction.reply({ content: "Non autorisé.", ephemeral: true });
             }
 
-            await interaction.message.delete();
+            const userId = interaction.customId.split("_")[1];
+
+            try {
+                const user = await client.users.fetch(userId);
+                await user.send("❌ Candidature refusée.");
+            } catch {}
+
+            return interaction.message.delete();
         }
     }
 
-    // ================= MODAL =================
+    // ================= MODALS =================
     if (interaction.isModalSubmit()) {
 
+        // tournoi
         if (interaction.customId === "tournament_modal") {
+
+            const age = interaction.fields.getTextInputValue("age");
+            const platform = interaction.fields.getTextInputValue("platform");
+            const dispo = interaction.fields.getTextInputValue("dispo");
 
             const embed = new EmbedBuilder()
                 .setTitle("Nouvelle candidature")
                 .addFields(
                     { name: "User", value: `<@${interaction.user.id}>` },
-                    { name: "Âge", value: interaction.fields.getTextInputValue("age") },
-                    { name: "Plateforme", value: interaction.fields.getTextInputValue("platform") },
-                    { name: "Dispo", value: interaction.fields.getTextInputValue("dispo") }
+                    { name: "Âge", value: age },
+                    { name: "Plateforme", value: platform },
+                    { name: "Dispo", value: dispo }
                 );
 
             const row = new ActionRowBuilder().addComponents(
@@ -144,10 +176,30 @@ client.on("interactionCreate", async (interaction) => {
 
             const channel = await client.channels.fetch(TOURNAMENT_CHANNEL);
 
-            await channel.send({ embeds: [embed], components: [row] });
+            if (channel) {
+                await channel.send({ embeds: [embed], components: [row] });
+            }
 
             return interaction.reply({
-                content: "Envoyé",
+                content: "Candidature envoyée.",
+                ephemeral: true
+            });
+        }
+
+        // signal (IMPORTANT FIX ICI)
+        if (interaction.customId === "signal_modal") {
+
+            const user = interaction.fields.getUser("user");
+            const reason = interaction.fields.getTextInputValue("reason");
+
+            const channel = interaction.channel;
+
+            await channel.send({
+                content: `🚨 Signalement\nUtilisateur: <@${user.id}>\nRaison: ${reason}`
+            });
+
+            return interaction.reply({
+                content: "Signal envoyé.",
                 ephemeral: true
             });
         }
