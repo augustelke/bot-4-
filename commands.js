@@ -180,9 +180,16 @@ module.exports = [
         .setName("mute")
         .setDescription("Timeout user")
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .addUserOption(o => o.setName("user").setRequired(true))
-        .addIntegerOption(o => o.setName("time").setRequired(true)),
-
+        .addUserOption(o =>
+    o.setName("user")
+     .setDescription("Utilisateur à mute")
+     .setRequired(true)
+)
+.addIntegerOption(o =>
+    o.setName("time")
+     .setDescription("Durée en minutes")
+     .setRequired(true)
+)
     async execute(interaction) {
         const user = interaction.options.getUser("user");
         const time = interaction.options.getInteger("time");
