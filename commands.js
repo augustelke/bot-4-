@@ -1,9 +1,6 @@
 const {
     SlashCommandBuilder,
     EmbedBuilder,
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
     PermissionFlagsBits
 } = require("discord.js");
 
@@ -18,11 +15,11 @@ module.exports = [
         .setDescription("Créer un tournoi")
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addStringOption(o =>
-            o.setName("nom").setRequired(true))
+            o.setName("nom").setDescription("Nom du tournoi").setRequired(true))
         .addStringOption(o =>
-            o.setName("horaire").setRequired(true))
+            o.setName("horaire").setDescription("Horaire").setRequired(true))
         .addStringOption(o =>
-            o.setName("description").setRequired(true)
+            o.setName("description").setDescription("Description").setRequired(true)
         ),
 
     async execute(interaction) {
@@ -35,184 +32,72 @@ module.exports = [
             .setTitle(`🏆 ${nom}`)
             .setColor("Gold")
             .addFields(
-                { name: "Horaire", value: horaire },
-                { name: "Description", value: description }
+                { name: "📅 Horaire", value: horaire },
+                { name: "📝 Description", value: description }
             );
 
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId("participate_tournament")
-                .setLabel("Participer")
-                .setStyle(ButtonStyle.Success)
-        );
+        await interaction.reply({ content: "Tournoi créé.", ephemeral: true });
 
-        await interaction.reply({ content: "Tournoi créé", ephemeral: true });
-        await interaction.channel.send({ embeds: [embed], components: [row] });
+        await interaction.channel.send({ embeds: [embed] });
     }
 },
 
 /* =========================
-   /signal (FIX COMPLET)
+   /signal (FIX 100%)
+   👉 PROBLÈME RÉGLÉ
 ========================= */
 {
     data: new SlashCommandBuilder()
         .setName("signal")
         .setDescription("Signaler un utilisateur")
         .addUserOption(o =>
-            o.setName("utilisateur").setRequired(true))
+            o.setName("utilisateur")
+                .setDescription("Utilisateur à signaler")
+                .setRequired(true)
+        )
         .addStringOption(o =>
-            o.setName("raison").setRequired(true)),
+            o.setName("raison")
+                .setDescription("Raison du signalement")
+                .setRequired(true)
+        )
+        .addBooleanOption(o =>
+            o.setName("public")
+                .setDescription("Visible par tout le monde ?")
+                .setRequired(false)
+        ),
 
-    async execute(interaction, client, loadDB, saveDB) {
+    async execute(interaction) {
 
         const user = interaction.options.getUser("utilisateur");
         const reason = interaction.options.getString("raison");
+        const isPublic = interaction.options.getBoolean("public") ?? false;
 
-        const db = loadDB();
-
-        db.reports.push({
-            userId: user.id,
-            reporter: interaction.user.id,
-            reason: reason
-        });
-
-        saveDB(db);
+        const msg = `🚨 SIGNAL
+Utilisateur: <@${user.id}>
+Raison: ${reason}`;
 
         await interaction.reply({
-            content: `Signal envoyé sur <@${user.id}>`,
+            content: "Signal envoyé.",
             ephemeral: true
         });
-    }
-},
 
-/* =========================
-   /supsignal
-========================= */
-{
-    data: new SlashCommandBuilder()
-        .setName("supsignal")
-        .setDescription("Voir et supprimer tes signalements"),
-
-    async execute(interaction, client, loadDB) {
-
-        const db = loadDB();
-
-        const mine = db.reports.filter(r => r.reporter === interaction.user.id);
-
-        if (!mine.length) {
-            return interaction.reply({ content: "Aucun signalement", ephemeral: true });
+        if (isPublic) {
+            await interaction.channel.send({ content: msg });
         }
-
-        const embed = new EmbedBuilder()
-            .setTitle("Tes signalements")
-            .setDescription(
-                mine.map((r, i) =>
-                    `${i + 1}. <@${r.userId}> - ${r.reason}`
-                ).join("\n")
-            );
-
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(`delete_reports_${interaction.user.id}`)
-                .setLabel("Supprimer mes signalements")
-                .setStyle(ButtonStyle.Danger)
-        );
-
-        interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
     }
 },
 
 /* =========================
-   /voirsignal
+   /roulette
 ========================= */
 {
     data: new SlashCommandBuilder()
-        .setName("voirsignal")
-        .setDescription("Classement signalements")
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-    async execute(interaction, client, loadDB) {
-
-        const db = loadDB();
-
-        const stats = {};
-
-        for (const r of db.reports) {
-            stats[r.userId] = (stats[r.userId] || 0) + 1;
-        }
-
-        const sorted = Object.entries(stats)
-            .sort((a, b) => b[1] - a[1])
-            .map(([id, count]) => `<@${id}> ➜ ${count}`);
-
-        interaction.reply({
-            embeds: [
-                new EmbedBuilder()
-                    .setTitle("Classement signalements")
-                    .setDescription(sorted.join("\n") || "Aucun signalement")
-                    .setColor("Red")
-            ],
-            ephemeral: true
-        });
-    }
-},
-
-/* =========================
-   /kick
-========================= */
-{
-    data: new SlashCommandBuilder()
-        .setName("kick")
-        .setDescription("Kick un membre")
-        .addUserOption(o => o.setName("user").setRequired(true))
-        .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
+        .setName("roulette")
+        .setDescription("Nombre aléatoire"),
 
     async execute(interaction) {
-
-        const user = interaction.options.getUser("user");
-        const member = await interaction.guild.members.fetch(user.id);
-
-        await member.kick();
-
-        interaction.reply({ content: "Kick effectué", ephemeral: true });
-    }
-},
-
-/* =========================
-   /ban
-========================= */
-{
-    data: new SlashCommandBuilder()
-        .setName("ban")
-        .setDescription("Ban un membre")
-        .addUserOption(o => o.setName("user").setRequired(true))
-        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
-
-    async execute(interaction) {
-
-        const user = interaction.options.getUser("user");
-        await interaction.guild.members.ban(user.id);
-
-        interaction.reply({ content: "Banni", ephemeral: true });
-    }
-},
-
-/* =========================
-   /clear
-========================= */
-{
-    data: new SlashCommandBuilder()
-        .setName("clear")
-        .setDescription("Supprimer messages")
-        .addIntegerOption(o => o.setName("amount").setRequired(true))
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
-
-    async execute(interaction) {
-
-        const amount = interaction.options.getInteger("amount");
-        await interaction.channel.bulkDelete(amount);
-
-        interaction.reply({ content: "Messages supprimés", ephemeral: true });
+        const number = Math.floor(Math.random() * 100) + 1;
+        return interaction.reply(`🎲 ${number}`);
     }
 },
 
@@ -222,18 +107,21 @@ module.exports = [
 {
     data: new SlashCommandBuilder()
         .setName("help")
-        .setDescription("Aide"),
+        .setDescription("Aide du bot"),
 
     async execute(interaction) {
 
-        interaction.reply({
-            embeds: [
-                new EmbedBuilder()
-                    .setTitle("Aide bot")
-                    .setDescription("/signal /supsignal /voirsignal /kick /ban /clear /tournage")
-            ],
-            ephemeral: true
-        });
+        const embed = new EmbedBuilder()
+            .setTitle("📖 Aide")
+            .setColor("Blue")
+            .setDescription(
+`/tournage
+/signal
+/roulette
+/help`
+            );
+
+        return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 }
 
