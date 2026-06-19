@@ -189,7 +189,7 @@ module.exports = [
     o.setName("time")
      .setDescription("Durée en minutes")
      .setRequired(true)
-)
+),
     async execute(interaction) {
         const user = interaction.options.getUser("user");
         const time = interaction.options.getInteger("time");
