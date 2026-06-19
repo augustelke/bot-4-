@@ -209,7 +209,11 @@ module.exports = [
         .setName("clear")
         .setDescription("Clear messages")
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .addIntegerOption(o => o.setName("amount").setRequired(true)),
+        .addIntegerOption(o =>
+    o.setName("amount")
+     .setDescription("Nombre de messages à supprimer")
+     .setRequired(true)
+)
 
     async execute(interaction) {
         const amount = interaction.options.getInteger("amount");
