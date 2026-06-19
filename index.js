@@ -9,9 +9,7 @@ const {
 const commands = require("./commands");
 
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds
-    ]
+    intents: [GatewayIntentBits.Guilds]
 });
 
 client.commands = new Collection();
@@ -26,18 +24,12 @@ client.once("ready", async () => {
 
     const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
-    try {
-        await rest.put(
-            Routes.applicationCommands(process.env.CLIENT_ID),
-            {
-                body: commands.map(c => c.data.toJSON())
-            }
-        );
+    await rest.put(
+        Routes.applicationCommands(process.env.CLIENT_ID),
+        { body: commands.map(c => c.data.toJSON()) }
+    );
 
-        console.log("Slash commands enregistrées");
-    } catch (err) {
-        console.error(err);
-    }
+    console.log("Slash commands enregistrées");
 });
 
 client.on("interactionCreate", async (interaction) => {
