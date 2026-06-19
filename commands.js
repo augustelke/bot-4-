@@ -266,7 +266,11 @@ module.exports = [
         .setName("slowmode")
         .setDescription("Slowmode")
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .addIntegerOption(o => o.setName("seconds").setRequired(true)),
+        .addIntegerOption(o =>
+    o.setName("seconds")
+     .setDescription("Temps du slowmode en secondes")
+     .setRequired(true)
+)
 
     async execute(interaction) {
         const s = interaction.options.getInteger("seconds");
