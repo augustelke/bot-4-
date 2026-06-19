@@ -17,26 +17,18 @@ module.exports = [
         .setName("tournage")
         .setDescription("Créer un tournoi")
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .addStringOption(o =>
-            o.setName("nom").setDescription("Nom du tournoi").setRequired(true))
-        .addStringOption(o =>
-            o.setName("horaire").setDescription("Horaire").setRequired(true))
-        .addStringOption(o =>
-            o.setName("description").setDescription("Description").setRequired(true)
-        ),
+        .addStringOption(o => o.setName("nom").setDescription("Nom").setRequired(true))
+        .addStringOption(o => o.setName("horaire").setDescription("Horaire").setRequired(true))
+        .addStringOption(o => o.setName("description").setDescription("Description").setRequired(true)),
 
     async execute(interaction) {
 
-        const nom = interaction.options.getString("nom");
-        const horaire = interaction.options.getString("horaire");
-        const description = interaction.options.getString("description");
-
         const embed = new EmbedBuilder()
-            .setTitle(`🏆 ${nom}`)
+            .setTitle("🏆 " + interaction.options.getString("nom"))
             .setColor("Gold")
             .addFields(
-                { name: "📅 Horaire", value: horaire },
-                { name: "📝 Description", value: description }
+                { name: "Horaire", value: interaction.options.getString("horaire") },
+                { name: "Description", value: interaction.options.getString("description") }
             );
 
         const row = new ActionRowBuilder().addComponents(
@@ -46,133 +38,230 @@ module.exports = [
                 .setStyle(ButtonStyle.Success)
         );
 
-        await interaction.reply({ content: "Tournoi créé.", ephemeral: true });
+        await interaction.reply({ content: "OK tournoi créé", ephemeral: true });
         await interaction.channel.send({ embeds: [embed], components: [row] });
     }
 },
 
 /* =========================
-   /signal (PRO PRESTO FIX)
+   /signal
 ========================= */
 {
     data: new SlashCommandBuilder()
         .setName("signal")
         .setDescription("Signaler un utilisateur")
-        .addUserOption(o =>
-            o.setName("utilisateur")
-                .setDescription("Utilisateur à signaler")
-                .setRequired(true)
-        )
-        .addStringOption(o =>
-            o.setName("raison")
-                .setDescription("Raison du signalement")
-                .setRequired(true)
-        )
-        .addBooleanOption(o =>
-            o.setName("public")
-                .setDescription("Visible pour les autres ?")
-                .setRequired(true)
-        ),
+        .addUserOption(o => o.setName("utilisateur").setDescription("Cible").setRequired(true))
+        .addStringOption(o => o.setName("raison").setDescription("Raison").setRequired(true)),
 
     async execute(interaction) {
 
         const user = interaction.options.getUser("utilisateur");
         const reason = interaction.options.getString("raison");
-        const isPublic = interaction.options.getBoolean("public");
 
-        if (!global.reports) global.reports = [];
-
-        const report = {
+        global.reports.push({
             id: Date.now().toString(),
             userId: interaction.user.id,
             targetId: user.id,
-            reason,
-            public: isPublic
-        };
-
-        global.reports.push(report);
+            reason
+        });
 
         await interaction.reply({
-            content: `🚨 Signal envoyé`,
+            content: "Signal enregistré.",
             ephemeral: true
         });
 
-        if (isPublic) {
-            await interaction.channel.send(
-                `🚨 SIGNAL\nUtilisateur: <@${user.id}>\nRaison: ${reason}`
-            );
-        }
+        await interaction.channel.send(`🚨 SIGNAL <@${user.id}> : ${reason}`);
     }
 },
 
 /* =========================
-   /supsignal (MES SIGNALS + SUPPRESSION)
+   /supsignal
 ========================= */
 {
     data: new SlashCommandBuilder()
         .setName("supsignal")
-        .setDescription("Voir et gérer tes signalements"),
+        .setDescription("Voir tes signalements"),
 
     async execute(interaction) {
 
-        const reports = (global.reports || []).filter(r => r.userId === interaction.user.id);
+        const reports = global.reports.filter(r => r.userId === interaction.user.id);
 
-        if (!reports.length) {
+        if (!reports.length)
             return interaction.reply({ content: "Aucun signal.", ephemeral: true });
-        }
 
         const embed = new EmbedBuilder()
-            .setTitle("Tes signalements")
+            .setTitle("Tes signals")
             .setColor("Red")
             .setDescription(
-                reports.map(r => `ID: ${r.id}\nRaison: ${r.reason}\n---`).join("\n")
+                reports.map(r => `ID: ${r.id}\n${r.reason}`).join("\n\n")
             );
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-                .setCustomId("delete_reports")
+                .setCustomId("delete_my_signals")
                 .setLabel("Supprimer mes signals")
                 .setStyle(ButtonStyle.Danger)
         );
 
+        return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    }
+},
+
+/* =========================
+   /voirsignal (ADMIN)
+========================= */
+{
+    data: new SlashCommandBuilder()
+        .setName("voirsignal")
+        .setDescription("Classement signals")
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    async execute(interaction) {
+
+        const stats = {};
+
+        for (const r of global.reports) {
+            stats[r.targetId] = (stats[r.targetId] || 0) + 1;
+        }
+
+        const sorted = Object.entries(stats)
+            .sort((a,b)=>b[1]-a[1])
+            .map(([id,c])=>`<@${id}> → ${c}`)
+            .join("\n");
+
         return interaction.reply({
-            embeds: [embed],
-            components: [row],
+            content: sorted || "Aucun signal",
             ephemeral: true
         });
     }
 },
 
 /* =========================
-   /voirsignal (ADMIN TRI)
+   /kick
 ========================= */
 {
     data: new SlashCommandBuilder()
-        .setName("voirsignal")
-        .setDescription("Voir les signalements (tri)")
+        .setName("kick")
+        .setDescription("Kick user")
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .addUserOption(o => o.setName("user").setDescription("user").setRequired(true)),
+
+    async execute(interaction) {
+        const user = interaction.options.getUser("user");
+        const member = await interaction.guild.members.fetch(user.id);
+
+        await member.kick();
+        return interaction.reply({ content: "Kick OK", ephemeral: true });
+    }
+},
+
+/* =========================
+   /ban
+========================= */
+{
+    data: new SlashCommandBuilder()
+        .setName("ban")
+        .setDescription("Ban user")
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .addUserOption(o => o.setName("user").setDescription("user").setRequired(true)),
+
+    async execute(interaction) {
+        const user = interaction.options.getUser("user");
+        await interaction.guild.members.ban(user.id);
+        return interaction.reply({ content: "Ban OK", ephemeral: true });
+    }
+},
+
+/* =========================
+   /mute
+========================= */
+{
+    data: new SlashCommandBuilder()
+        .setName("mute")
+        .setDescription("Timeout user")
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .addUserOption(o => o.setName("user").setRequired(true))
+        .addIntegerOption(o => o.setName("time").setRequired(true)),
+
+    async execute(interaction) {
+        const user = interaction.options.getUser("user");
+        const time = interaction.options.getInteger("time");
+
+        const member = await interaction.guild.members.fetch(user.id);
+        await member.timeout(time * 60000);
+
+        return interaction.reply({ content: "Mute OK", ephemeral: true });
+    }
+},
+
+/* =========================
+   /clear
+========================= */
+{
+    data: new SlashCommandBuilder()
+        .setName("clear")
+        .setDescription("Clear messages")
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .addIntegerOption(o => o.setName("amount").setRequired(true)),
+
+    async execute(interaction) {
+        const amount = interaction.options.getInteger("amount");
+        await interaction.channel.bulkDelete(amount);
+        return interaction.reply({ content: "Clear OK", ephemeral: true });
+    }
+},
+
+/* =========================
+   /lock
+========================= */
+{
+    data: new SlashCommandBuilder()
+        .setName("lock")
+        .setDescription("Lock channel")
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
+        await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
+            SendMessages: false
+        });
 
-        const reports = global.reports || [];
+        return interaction.reply({ content: "Locked", ephemeral: true });
+    }
+},
 
-        const stats = {};
+/* =========================
+   /unlock
+========================= */
+{
+    data: new SlashCommandBuilder()
+        .setName("unlock")
+        .setDescription("Unlock channel")
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-        for (const r of reports) {
-            stats[r.targetId] = (stats[r.targetId] || 0) + 1;
-        }
+    async execute(interaction) {
+        await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
+            SendMessages: true
+        });
 
-        const sorted = Object.entries(stats)
-            .sort((a, b) => b[1] - a[1])
-            .map(([id, count]) => `<@${id}> → ${count} signal(s)`)
-            .join("\n");
+        return interaction.reply({ content: "Unlocked", ephemeral: true });
+    }
+},
 
-        const embed = new EmbedBuilder()
-            .setTitle("📊 Classement signalements")
-            .setColor("Orange")
-            .setDescription(sorted || "Aucun signal");
+/* =========================
+   /slowmode
+========================= */
+{
+    data: new SlashCommandBuilder()
+        .setName("slowmode")
+        .setDescription("Slowmode")
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .addIntegerOption(o => o.setName("seconds").setRequired(true)),
 
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+    async execute(interaction) {
+        const s = interaction.options.getInteger("seconds");
+        await interaction.channel.setRateLimitPerUser(s);
+
+        return interaction.reply({ content: "Slowmode OK", ephemeral: true });
     }
 },
 
@@ -182,11 +271,10 @@ module.exports = [
 {
     data: new SlashCommandBuilder()
         .setName("roulette")
-        .setDescription("Nombre aléatoire"),
+        .setDescription("Random number"),
 
     async execute(interaction) {
-        const number = Math.floor(Math.random() * 100) + 1;
-        return interaction.reply(`🎲 ${number}`);
+        return interaction.reply("🎲 " + Math.floor(Math.random()*100));
     }
 },
 
@@ -196,22 +284,26 @@ module.exports = [
 {
     data: new SlashCommandBuilder()
         .setName("help")
-        .setDescription("Aide du bot"),
+        .setDescription("Help bot"),
 
     async execute(interaction) {
 
-        const embed = new EmbedBuilder()
-            .setTitle("📖 Aide")
-            .setColor("Blue")
-            .setDescription(
+        return interaction.reply({
+            content:
 `/tournage
 /signal
 /supsignal
 /voirsignal
-/roulette`
-            );
-
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+/kick
+/ban
+/mute
+/clear
+/lock
+/unlock
+/slowmode
+/roulette`,
+            ephemeral: true
+        });
     }
 }
 
