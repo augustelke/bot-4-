@@ -3,16 +3,31 @@ const {
     GatewayIntentBits,
     Collection,
     REST,
-    Routes
+    Routes,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle,
+    ActionRowBuilder,
+    EmbedBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    PermissionFlagsBits
 } = require("discord.js");
 
 const commands = require("./commands");
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
 });
 
 client.commands = new Collection();
+
+// "database" simple en RAM (pas de package)
+global.reports = [];
 
 for (const cmd of commands) {
     client.commands.set(cmd.data.name, cmd);
@@ -23,39 +38,48 @@ client.once("ready", async () => {
 
     const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
-    await rest.put(
-        Routes.applicationCommands(process.env.CLIENT_ID),
-        { body: commands.map(c => c.data.toJSON()) }
-    );
+    try {
+        await rest.put(
+            Routes.applicationCommands(process.env.CLIENT_ID),
+            { body: commands.map(c => c.data.toJSON()) }
+        );
 
-    console.log("Slash commands enregistrées");
+        console.log("Slash commands OK");
+    } catch (err) {
+        console.error(err);
+    }
 });
 
 client.on("interactionCreate", async (interaction) => {
 
-    // SLASH COMMANDS
+    // ================= SLASH =================
     if (interaction.isChatInputCommand()) {
 
-        const command = client.commands.get(interaction.commandName);
-        if (!command) return;
+        const cmd = client.commands.get(interaction.commandName);
+        if (!cmd) return;
 
         try {
-            await command.execute(interaction, client);
+            await cmd.execute(interaction, client);
         } catch (err) {
             console.error(err);
-            return interaction.reply({ content: "Erreur commande.", ephemeral: true });
+            return interaction.reply({
+                content: "Erreur commande.",
+                ephemeral: true
+            });
         }
     }
 
-    // BUTTONS
+    // ================= BUTTONS =================
     if (interaction.isButton()) {
 
-        // delete signals
         if (interaction.customId === "delete_my_reports") {
-            const cmd = client.commands.get("supsignal");
-            if (cmd && cmd.deleteReports) {
-                cmd.deleteReports(interaction);
-            }
+
+            global.reports = global.reports.filter(r => r.userId !== interaction.user.id);
+
+            return interaction.reply({
+                content: "Tes signalements ont été supprimés.",
+                ephemeral: true
+            });
         }
     }
 });
