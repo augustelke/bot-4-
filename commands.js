@@ -213,7 +213,7 @@ module.exports = [
     o.setName("amount")
      .setDescription("Nombre de messages à supprimer")
      .setRequired(true)
-)
+),
 
     async execute(interaction) {
         const amount = interaction.options.getInteger("amount");
