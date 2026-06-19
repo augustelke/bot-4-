@@ -14,7 +14,6 @@ const client = new Client({
 
 client.commands = new Collection();
 
-// load commands
 for (const cmd of commands) {
     client.commands.set(cmd.data.name, cmd);
 }
@@ -34,19 +33,30 @@ client.once("ready", async () => {
 
 client.on("interactionCreate", async (interaction) => {
 
-    if (!interaction.isChatInputCommand()) return;
+    // SLASH COMMANDS
+    if (interaction.isChatInputCommand()) {
 
-    const command = client.commands.get(interaction.commandName);
-    if (!command) return;
+        const command = client.commands.get(interaction.commandName);
+        if (!command) return;
 
-    try {
-        await command.execute(interaction, client);
-    } catch (err) {
-        console.error(err);
-        return interaction.reply({
-            content: "Erreur commande.",
-            ephemeral: true
-        });
+        try {
+            await command.execute(interaction, client);
+        } catch (err) {
+            console.error(err);
+            return interaction.reply({ content: "Erreur commande.", ephemeral: true });
+        }
+    }
+
+    // BUTTONS
+    if (interaction.isButton()) {
+
+        // delete signals
+        if (interaction.customId === "delete_my_reports") {
+            const cmd = client.commands.get("supsignal");
+            if (cmd && cmd.deleteReports) {
+                cmd.deleteReports(interaction);
+            }
+        }
     }
 });
 
