@@ -270,7 +270,7 @@ module.exports = [
     o.setName("seconds")
      .setDescription("Temps du slowmode en secondes")
      .setRequired(true)
-)
+),
 
     async execute(interaction) {
         const s = interaction.options.getInteger("seconds");
